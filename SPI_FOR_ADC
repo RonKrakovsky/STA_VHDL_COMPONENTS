@@ -1,0 +1,130 @@
+/* 
+RON KRAKOVSKY
+spi for programming the mode control registers in adc
+*/
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+--------------------------------------------------
+
+entity SPI_FOR_ADC is
+generic(
+	addres_with_bits : integer := 7;
+	data_with_bits	: integer := 8
+	);
+port(	
+	csi_sink_Clk 		: in std_logic; -- clk for spi need to be 25MHZ
+	rsi_sink_reset	 	: in std_logic; -- reset in LOW = '0'
+	asi_sink_SDO		: in std_logic; -- serial data from adc 
+	asi_sink_W_R		: in std_logic; -- Write or Read data mode, '0' write, '1' read
+	asi_sink_valid		: in std_logic; -- valid for start this componnent
+	aso_source_CS		: out std_logic; -- serial chip select 
+	aso_source_SCK		: out std_logic; -- clock for adc, the same as csi_sink_Clk
+	aso_source_SDI		: out std_logic; -- serial data to adc 
+	aso_source_read_data : out std_logic_vector(data_with_bits + addres_with_bits - 1 downto 0); -- data from registers, (7:address,8:data)
+	aso_source_out_valid : out std_logic -- out valid, if '1' the out ready 
+);
+end SPI_FOR_ADC;  
+
+--------------------------------------------------
+
+architecture behav of SPI_FOR_ADC is
+TYPE STATE_TYPE IS (idle, organize, write_data, end_write);
+signal state : STATE_TYPE;
+
+type mem is array (0 to 5) of std_logic_vector(data_with_bits - 1 downto 0);
+constant Register_ROM_DATA : mem := (
+"10110101",
+"00100101",
+"01110101",
+"01110101",
+"00010101",
+"11110101"
+);
+
+signal s_data_out, s_read_data : std_logic_vector(data_with_bits + addres_with_bits downto 0); 
+signal Address_index : integer range 0 to 6;
+signal Data_out_index,Data_read_index : integer range 0 to data_with_bits + addres_with_bits;
+begin
+
+    process(csi_sink_Clk, rsi_sink_reset)
+    begin
+		if(rsi_sink_reset = '0') then
+			aso_source_CS <= '1';
+			aso_source_SDI <= '0';
+			Address_index <= 0;
+			Data_out_index <= s_data_out'high;
+			Data_read_index <= s_data_out'high;
+			state <= idle;
+				
+			elsif(falling_edge(csi_sink_Clk)) then 
+				case state is
+					when idle =>
+						aso_source_CS <= '1';
+						aso_source_SDI <= '0';
+						Address_index <= 0;
+						s_data_out(s_data_out'high) <= asi_sink_W_R; -- bit controll Write or Read data
+						Data_out_index <= s_data_out'high;
+						Data_read_index <= s_data_out'high;
+						if asi_sink_valid = '1' then 
+							state <= organize;
+						end if;
+						
+						
+					-- organize the frame for programing adc, what the address and data in register.
+					when organize => 				
+						if Address_index = 6 then 
+							state <= idle;
+						else
+							s_data_out((s_data_out'high - 1) downto (s_data_out'high - addres_with_bits)) <= std_logic_vector(to_unsigned(Address_index, addres_with_bits));				
+							s_data_out(data_with_bits - 1 downto 0) <= Register_ROM_DATA(Address_index);
+							Address_index <= Address_index + 1;
+							state <= write_data;
+							aso_source_CS <= '0';
+							aso_source_out_valid <= '0';
+							aso_source_SDI <= s_data_out(s_data_out'high);
+							Data_out_index <= Data_out_index - 1;
+						end if;
+									
+					when write_data => 
+						aso_source_SDI <= s_data_out(Data_out_index);
+						if Data_out_index = 0 then 
+							Data_out_index <= s_data_out'high;
+							state <= end_write;
+						else
+							Data_out_index <= Data_out_index - 1;
+						end if;	
+					
+					when end_write => 
+						aso_source_CS <= '1';
+						if s_data_out(s_data_out'high) = '1' then 
+							aso_source_out_valid <= '1';
+							aso_source_read_data <= s_read_data(s_data_out'high - 1 downto 0);
+						end if;
+						state <= organize;
+
+				end case;
+				
+			elsif(rising_edge(csi_sink_Clk)) then 
+				if state = write_data or state = end_write then
+					if Data_read_index < 8 AND Data_read_index > 0 then 
+						s_read_data(Data_read_index) <= asi_sink_SDO;
+						Data_read_index <= Data_read_index - 1;
+					elsif Data_read_index = 0 then 
+						s_read_data(Data_read_index) <= asi_sink_SDO;
+						Data_read_index <= s_data_out'high;
+					else
+						s_read_data(Data_read_index) <= s_data_out(Data_read_index);
+						Data_read_index <= Data_read_index - 1;
+					end if;
+				end if;
+					
+		end if;
+    end process;
+	 
+	 	 
+aso_source_SCK <= csi_sink_Clk when state = write_data or state = end_write else
+						'1';
+end behav;
