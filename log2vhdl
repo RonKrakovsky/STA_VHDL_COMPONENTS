@@ -1,0 +1,47 @@
+# input = ufix(28,3) = 31 bit
+# 0 to 150 log
+# output = log := ufix(4,7) = 11 bit
+
+import math
+dB_max = math.log(pow(2, 28), 10)
+print(dB_max)
+lut_width = dB_max/0.01
+print(lut_width)
+dB = 0
+frac_width_1 = 8
+frac_width = 128
+last = -1
+
+for i in range(int(lut_width)+1):
+    num_0 = pow(10, dB)
+    num_1 = pow(10, dB + 0.01)
+    frac_bit_0 = int((num_0 % 1) * frac_width_1)
+    int_bit_0 = int(num_0) * frac_width_1
+    frac_bit_1 = int((num_1 % 1) * frac_width_1)
+    int_bit_1 = int(num_1) * frac_width_1
+
+    frac_log_bit_0 = int((dB % 1) * frac_width)
+    int_log_bit_0 = int(dB) * frac_width
+    num_0 = int_bit_0+frac_bit_0
+    num_1 = int_bit_0+frac_bit_0
+    if num_0 != last:
+        last = num_1
+        if i == int(lut_width):
+            print("when ", num_0, " to ", pow(2, 31)-1, "=> aso_source_data <= to_unsigned(", frac_log_bit_0 + int_log_bit_0 ,",11);")
+        else:
+            print("when ", num_0, " to ", num_1, "=> aso_source_data <= to_unsigned(", frac_log_bit_0 + int_log_bit_0 ,",11);")
+    dB = dB + 0.01
+
+
+#dB = 0
+#for i in range(int(lut_width)+1):
+#    #print(dB)
+#    frac_log_bit_0 = int((dB % 1) * frac_width)
+#    #print(frac_bit_0)
+#    int_log_bit_0 = int(dB) * frac_width
+#    #print(int_bit_0)
+#    print(frac_log_bit_0+int_log_bit_0)
+#    dB = dB + 0.01
+#    #print(dB)
+
+#
