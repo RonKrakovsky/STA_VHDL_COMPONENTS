@@ -1,0 +1,23 @@
+L = 512;
+wvtool(hann(L))
+w = hann(L);
+n = 2;         % number bits for integer part of your number      
+m = 8;         % number bits for fraction part of your number
+% binary number
+d2b = fix(rem(w*pow2(-(n-1):m),2)); 
+% the inverse transformation
+b2d = d2b*pow2(n-1:-1:-m).';
+x = binaryVectorToDecimal(d2b);
+with = 50;
+fid=fopen('Mif.txt','w');
+for c = 1:L
+  formatSpec = '%d, ';
+  fprintf(fid,formatSpec,x(c,1));
+  if (with == c)
+      fprintf(fid,'\n');
+      with = with + 50;
+  end
+end
+fclose(fid);
+
+
