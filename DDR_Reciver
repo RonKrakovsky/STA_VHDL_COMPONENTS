@@ -1,0 +1,60 @@
+/* 
+RON KRAKOVSKY
+DDR reciver data from adc, 16 bit data_with
+*/
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std;
+
+--------------------------------------------------
+
+entity DDR_Reciver is
+generic(
+	data_with : integer := 16
+);
+port(	
+	csi_sink_Clk_ADC 	 : in std_logic; -- CLKOUT+ OUTPUT Clk from ADC, this clk have PHASE SHIFT = 135*
+	rsi_sink_reset	 	 : in std_logic; -- reset in LOW = '0'
+	asi_sink_Data 	 	 : in std_logic_vector((data_with/2)-1 downto 0); -- D0_1+ & D2_3+ &......
+	asi_sink_Of		 	 : in std_logic; --  Over/Under Flow Digital Output
+	aso_source_Data	 	 : out std_logic_vector(data_with-1 downto 0)
+
+);
+end DDR_Reciver;  
+
+--------------------------------------------------
+
+architecture behav of DDR_Reciver is
+signal s_data_0,s_data_1 : std_logic_vector((data_with/2)-1 downto 0);  -- the data split for 2 byte 
+signal s_data : std_logic_vector(data_with-1 downto 0);
+begin
+
+    process(csi_sink_Clk_ADC, rsi_sink_reset)
+    begin
+		if(rsi_sink_reset = '0') then
+			aso_source_Data <= (others => '0');
+		elsif(falling_edge(csi_sink_Clk_ADC)) then 
+			aso_source_Data <= s_data;
+			s_data_0 <= asi_sink_Data;
+		elsif(rising_edge(csi_sink_Clk_ADC)) then 
+			s_data_1 <= asi_sink_Data;
+		end if;
+    end process;
+
+GEN_OUTPUT: 
+	for I in 0 to (data_with-1) generate
+	begin
+	
+	if_0 :  if I = 0 generate
+				s_data(0) <= s_data_0(0);
+			elsif I = 1 generate
+				s_data(1) <= s_data_1(0);
+			elsif (I mod 2) = 0 generate
+				s_data(I) <= s_data_0(I/2);
+			else generate
+				s_data(I) <= s_data_1((I-1)/2);
+			end generate if_0;
+			
+	end generate GEN_OUTPUT; 
+end behav;
