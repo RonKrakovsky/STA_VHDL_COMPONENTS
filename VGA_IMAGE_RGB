@@ -33,6 +33,7 @@ signal is "mif5.mif";
 
 signal rgb : std_logic_vector(23 downto 0);
 signal counter,x1,x2,counter_display : integer;
+signal start : std_logic;
 begin
 
     process(csi_sink_clk, rsi_sink_reset)
@@ -42,24 +43,28 @@ begin
 			x1 <= 0;
 			x2 <= 0;
 			counter_display <= 0;
+			start <= '0';
 		elsif rising_edge(csi_sink_clk) then 
 			if reset_pixels_v = '1' and reset_pixels_h = '1' then 
 				counter <= 0; 
 				x1 <= 640;
 				x2 <= 1280;
 				counter_display <= 0;
+				start <= '0';
 			elsif v_act = '1' and h_act = '1' then 
 				if counter > 76800 then
 					rgb <= (others => '1');
 				else
-					if counter < x1 and counter > (x1 - 481) then 
+					if counter < x1 and counter > (x1 - 480) then 
 						rgb <= (others => '1');
 					else
-						if counter < x2 and counter > (x2 - 481) then 
+						if counter < x2 and counter > (x2 - 480) then 
 							rgb <= (others => '1');
-						else
+						elsif start = '1' then
 							rgb <= std_logic_vector(ram(counter_display));
 							counter_display <= counter_display + 1;
+						else
+							start <= '1';
 						end if;
 						
 					end if;
@@ -74,8 +79,9 @@ begin
 					
 				end if;
 				
-				
 				counter <= counter + 1;
+			else
+				start <= '0';
 			end if;	
 		end if;
     end process;
